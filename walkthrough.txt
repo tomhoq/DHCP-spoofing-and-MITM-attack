@@ -1,0 +1,37 @@
+--------------------Webserver and DNS----------------------
+I started out by using docker as the host of the dns and the webserver. I found out later that this made things harder if not impossible so I used my environment instead.
+- start a nginx server that uses index.html on docker webserver
+- created a dns server with dnsmasq that maps facebook to the vms ip. Configured /etc/dnsmasq.conf file for this purpose
+- set /etc/resolve.conf file dns ip to my vm
+- try dig facebook.com and it uses dockers container ip correctly
+- try curl and it is still going to the real facebook
+- check with tcpdump and it is indeed still going over the real dns
+- find out about /etc/nsswitch.conf which sets the order of lookup
+- specifically dns which uses resolv.conf was the last in line which meant every other method was being used before
+- resolved which uses the systemd-resolved service was being used and the reason why curl and normal get request
+were failing
+- so I set the ip of dns in systemd resolved by doing resolvectl dns interface (wlp1s0 in this case) ip (of the vm)
+- curl was now working but not get requests in firefox using http
+- apparently firefox switches automatically from http to https for known pages like facebook
+- lets try to setup a https instead with caddy 
+- its not possible because there needs to be a dns entry
+
+- some weeks later -> after using alpine as victim in another ip range it means docker is no longer reachable from the vm.  So i will reproduce the previous steps on my own machine
+-------DHCP STARVATION--------------------
+- Inside dhcp_starvation I created code to starve a dhcp server. Initially I tried on my own router but it seemed like my pc did not receive an offer maybe becasue the mac differs from the one the interface uses.
+- another student gave me a tip to set up a dhcp server and try to starve it instead
+- so i created a dhcp server inside the same docker container with isc-dhcp-server with 252 ips for lease  (corresponding to the docker network ips 172.17.0.3-255) and ran with dhcp -f -d to run in the foreground and also output to stdout
+-  I tried sending a discovery and got an offer. Then I coded Request and the attack was ready
+- I tried the attack in the server I created and it worked.
+
+--------DHCP Fake Server --------------------------
+- Now I need to code a dhcp server that provides the fake dns' ip. 
+- Inside dhcp_server I created  code to listen for discovery packets on any interface through the use of Raw sockets. Then it sends a dhcp offer using the ip of the specified interface. 
+- I will try to create a victim in another container with its own ip and get it to automatically do a dhcp discovery on boot. By using udhcpd I can get the client in the VM to restart the DHCP protocol.
+- then my dhcp server should be the only server and it should communicate with it giving it a wrong dns.
+- in the client I can then try to curl facebook.com and see what happens.
+- this doesnt work as I would like because docker automatically assigns an ip- Can we make it so the docker does not use the docker0 bridge and requires an ip from the host? Not trivial - instead I will use a simple Alpine VM in Virtual box. The username is root and to setup dhcp simply have to run setup-alpine and follow the steps
+- this alternative partially worked -> my dhcp server was sending an offer the VM was requesting it but for some reason it didnt accept the ip after the ACK packet. I tried with a "real" dhcp server set up with isc-dhcp-server running in host and this time the VM got the right ip.
+- Apparently this is a common issue with Virtual Box.
+- I tried using the isc dhcp server to provide it with a fake dns and it worked. However even though from Alpine I can ping my own machine which is now responsible for running the webserver and dns I cant curl it.
+- Other students also had this same issue apparently.

@@ -1,0 +1,8 @@
+1.VM sends multiple dhcp requests with idfferent macs to starve dhcp server
+2.VM runs fake dhcp and dns server
+3.Victim sends broadcast to request ip 
+4.VM answers plus sends ip of fake dns server
+5.Victim accepts 
+6.Victim goes to facebook
+7.local DNS facebook ip is the fake one 
+8.Fake dns in VM redirects victim to custom webpage running in VM
